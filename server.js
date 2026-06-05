@@ -1,7 +1,25 @@
 const express = require('express');
+const path = require('path');
+const nodemailer = require('nodemailer');
+const fs = require('fs');
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use('/posts', express.static(path.join(__dirname)));
+
+const LOGO_HTML = `
+<header style="background:#0a1628;border-bottom:1px solid rgba(212,175,122,.15);padding:16px 24px;position:sticky;top:0;z-index:100;backdrop-filter:blur(8px)">
+  <div style="max-width:740px;margin:0 auto;display:flex;align-items:center;gap:14px">
+    <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#d4af7a,#b8934a);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:17px;color:#0a1628;letter-spacing:-1px;flex-shrink:0;box-shadow:0 0 0 2px rgba(212,175,122,.3)">AK</div>
+    <div>
+      <div style="font-size:16px;font-weight:700;color:#f4ede1;line-height:1.2">Akshay Kumar BM</div>
+      <div style="font-size:12px;color:#d4af7a;letter-spacing:1.5px;text-transform:uppercase">AI Automation</div>
+    </div>
+    <div style="margin-left:auto">
+      <a href="https://wa.me/919164623536?text=Hi%20Akshay%2C%20I%20want%20the%20AI%20bot%20demo" style="background:#d4af7a;color:#0a1628;padding:8px 18px;border-radius:20px;font-size:13px;font-weight:700;text-decoration:none">Get Demo →</a>
+    </div>
+  </div>
+</header>`;
 
 // ── Landing Page ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
@@ -75,6 +93,7 @@ app.get('/', (req, res) => {
 </style>
 </head>
 <body>
+${LOGO_HTML}
 <div class="wrap">
 
   <div class="hero-tag">New · May 2026</div>
@@ -206,6 +225,7 @@ app.get('/onboard', (req, res) => {
 </style>
 </head>
 <body>
+${LOGO_HTML}
 <div class="wrap">
   <h1>Bot <span>Onboarding</span></h1>
   <p class="sub">Takes 5 minutes. Fill this once — I build your bot and deliver in 48 hours.</p>
@@ -342,6 +362,7 @@ RULES:
 </style>
 </head>
 <body>
+${LOGO_HTML}
 <div class="wrap">
   <div class="badge">✓ Submitted</div>
   <h1>Onboarding <span>Complete!</span></h1>
@@ -371,34 +392,63 @@ RULES:
   // Log to console
   console.log('\n🔔 NEW CLIENT ONBOARDING:', d.business_name, '|', d.city, '|', d.whatsapp_number);
 
-  // Send instant email notification via Resend
-  const RESEND_API_KEY = process.env.RESEND_API_KEY;
-  if (RESEND_API_KEY) {
-    fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${RESEND_API_KEY}` },
-      body: JSON.stringify({
-        from: 'onboarding@resend.dev',
-        to: 'akshaykumarbedre.bm@gmail.com',
-        subject: `🔔 New Bot Client: ${d.business_name} (${d.city})`,
-        html: `<h2>New Onboarding Submission</h2>
-<table style="border-collapse:collapse;width:100%">
-<tr><td style="padding:8px;font-weight:bold">Business</td><td style="padding:8px">${d.business_name}</td></tr>
-<tr style="background:#f5f5f5"><td style="padding:8px;font-weight:bold">Type</td><td style="padding:8px">${d.business_type}</td></tr>
-<tr><td style="padding:8px;font-weight:bold">City</td><td style="padding:8px">${d.city}</td></tr>
-<tr style="background:#f5f5f5"><td style="padding:8px;font-weight:bold">Address</td><td style="padding:8px">${d.address}</td></tr>
-<tr><td style="padding:8px;font-weight:bold">Timings</td><td style="padding:8px">${d.timings}</td></tr>
-<tr style="background:#f5f5f5"><td style="padding:8px;font-weight:bold">WhatsApp</td><td style="padding:8px">${d.whatsapp_number}</td></tr>
-<tr><td style="padding:8px;font-weight:bold">Instagram</td><td style="padding:8px">${d.instagram || '-'}</td></tr>
-<tr style="background:#f5f5f5"><td style="padding:8px;font-weight:bold">Owner WhatsApp</td><td style="padding:8px">${d.owner_whatsapp}</td></tr>
-<tr><td style="padding:8px;font-weight:bold">Languages</td><td style="padding:8px">${d.languages}</td></tr>
+  // ── Instant push notification via ntfy.sh (no API key needed) ────────────
+  const NTFY_TOPIC = process.env.NTFY_TOPIC || 'akshay-bot-leads-9x3k';
+  fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+    method: 'POST',
+    headers: {
+      'Title': `New Client: ${d.business_name}`,
+      'Priority': 'high',
+      'Tags': 'robot,money_with_wings'
+    },
+    body: `${d.business_type} · ${d.city}\nWhatsApp: ${d.whatsapp_number}\nOwner WA: ${d.owner_whatsapp}`
+  }).then(() => console.log('✅ Push notification sent via ntfy.sh'))
+    .catch(e => console.log('⚠ ntfy push failed:', e.message));
+
+  // Save to submissions.json as backup
+  const submissionsFile = path.join(__dirname, 'submissions.json');
+  try {
+    let list = [];
+    if (fs.existsSync(submissionsFile)) list = JSON.parse(fs.readFileSync(submissionsFile, 'utf8'));
+    list.push({ ...d, submittedAt: new Date().toISOString() });
+    fs.writeFileSync(submissionsFile, JSON.stringify(list, null, 2));
+    console.log('✅ Saved to submissions.json');
+  } catch (e) { console.log('⚠ Could not write submissions.json:', e.message); }
+
+  // Send email via Gmail (set GMAIL_USER + GMAIL_PASS in env or Vercel)
+  const GMAIL_USER = process.env.GMAIL_USER;
+  const GMAIL_PASS = process.env.GMAIL_PASS;
+  if (GMAIL_USER && GMAIL_PASS) {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: GMAIL_USER, pass: GMAIL_PASS }
+    });
+    transporter.sendMail({
+      from: `"Bot Onboarding" <${GMAIL_USER}>`,
+      to: 'akshaykumarbedre.bm@gmail.com',
+      subject: `🔔 New Bot Client: ${d.business_name} (${d.city})`,
+      html: `<h2 style="color:#d4af7a">New Onboarding Submission</h2>
+<table style="border-collapse:collapse;width:100%;font-family:sans-serif">
+<tr><td style="padding:8px;font-weight:bold;background:#f9f9f9">Business</td><td style="padding:8px">${d.business_name}</td></tr>
+<tr><td style="padding:8px;font-weight:bold">Type</td><td style="padding:8px">${d.business_type}</td></tr>
+<tr><td style="padding:8px;font-weight:bold;background:#f9f9f9">City</td><td style="padding:8px">${d.city}</td></tr>
+<tr><td style="padding:8px;font-weight:bold">Address</td><td style="padding:8px">${d.address}</td></tr>
+<tr><td style="padding:8px;font-weight:bold;background:#f9f9f9">Timings</td><td style="padding:8px">${d.timings}</td></tr>
+<tr><td style="padding:8px;font-weight:bold">WhatsApp</td><td style="padding:8px">${d.whatsapp_number}</td></tr>
+<tr><td style="padding:8px;font-weight:bold;background:#f9f9f9">Instagram</td><td style="padding:8px">${d.instagram || '-'}</td></tr>
+<tr><td style="padding:8px;font-weight:bold">Owner WhatsApp</td><td style="padding:8px">${d.owner_whatsapp}</td></tr>
+<tr><td style="padding:8px;font-weight:bold;background:#f9f9f9">Languages</td><td style="padding:8px">${d.languages}</td></tr>
 </table>
 <h3 style="margin-top:20px">Services</h3><pre style="background:#f5f5f5;padding:12px">${d.services}</pre>
 <h3>FAQs</h3><pre style="background:#f5f5f5;padding:12px">${d.faqs}</pre>
 <h3>Extra Notes</h3><pre style="background:#f5f5f5;padding:12px">${d.extra || 'None'}</pre>
-<p style="margin-top:20px;color:#888">Reply to this email or WhatsApp the owner at ${d.owner_whatsapp} to follow up.</p>`
-      })
-    }).catch(err => console.error('Email notification failed:', err.message));
+<p style="margin-top:20px;color:#888">Owner WhatsApp: ${d.owner_whatsapp}</p>`
+    }, (err, info) => {
+      if (err) console.error('❌ Email failed:', err.message);
+      else console.log('✅ Email sent:', info.messageId);
+    });
+  } else {
+    console.warn('⚠ Email skipped — set GMAIL_USER and GMAIL_PASS env vars to enable email alerts.');
   }
 });
 
