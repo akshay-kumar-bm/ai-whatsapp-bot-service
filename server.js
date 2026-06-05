@@ -368,14 +368,38 @@ RULES:
 </body>
 </html>`);
 
-  // Log to console so Akshay sees new clients
-  console.log('\n🔔 NEW CLIENT ONBOARDING:');
-  console.log('Business:', d.business_name);
-  console.log('Type:', d.business_type);
-  console.log('City:', d.city);
-  console.log('WhatsApp:', d.whatsapp_number);
-  console.log('Owner WA:', d.owner_whatsapp);
-  console.log('---');
+  // Log to console
+  console.log('\n🔔 NEW CLIENT ONBOARDING:', d.business_name, '|', d.city, '|', d.whatsapp_number);
+
+  // Send instant email notification via Resend
+  const RESEND_API_KEY = process.env.RESEND_API_KEY;
+  if (RESEND_API_KEY) {
+    fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${RESEND_API_KEY}` },
+      body: JSON.stringify({
+        from: 'onboarding@resend.dev',
+        to: 'akshaykumarbedre.bm@gmail.com',
+        subject: `🔔 New Bot Client: ${d.business_name} (${d.city})`,
+        html: `<h2>New Onboarding Submission</h2>
+<table style="border-collapse:collapse;width:100%">
+<tr><td style="padding:8px;font-weight:bold">Business</td><td style="padding:8px">${d.business_name}</td></tr>
+<tr style="background:#f5f5f5"><td style="padding:8px;font-weight:bold">Type</td><td style="padding:8px">${d.business_type}</td></tr>
+<tr><td style="padding:8px;font-weight:bold">City</td><td style="padding:8px">${d.city}</td></tr>
+<tr style="background:#f5f5f5"><td style="padding:8px;font-weight:bold">Address</td><td style="padding:8px">${d.address}</td></tr>
+<tr><td style="padding:8px;font-weight:bold">Timings</td><td style="padding:8px">${d.timings}</td></tr>
+<tr style="background:#f5f5f5"><td style="padding:8px;font-weight:bold">WhatsApp</td><td style="padding:8px">${d.whatsapp_number}</td></tr>
+<tr><td style="padding:8px;font-weight:bold">Instagram</td><td style="padding:8px">${d.instagram || '-'}</td></tr>
+<tr style="background:#f5f5f5"><td style="padding:8px;font-weight:bold">Owner WhatsApp</td><td style="padding:8px">${d.owner_whatsapp}</td></tr>
+<tr><td style="padding:8px;font-weight:bold">Languages</td><td style="padding:8px">${d.languages}</td></tr>
+</table>
+<h3 style="margin-top:20px">Services</h3><pre style="background:#f5f5f5;padding:12px">${d.services}</pre>
+<h3>FAQs</h3><pre style="background:#f5f5f5;padding:12px">${d.faqs}</pre>
+<h3>Extra Notes</h3><pre style="background:#f5f5f5;padding:12px">${d.extra || 'None'}</pre>
+<p style="margin-top:20px;color:#888">Reply to this email or WhatsApp the owner at ${d.owner_whatsapp} to follow up.</p>`
+      })
+    }).catch(err => console.error('Email notification failed:', err.message));
+  }
 });
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
