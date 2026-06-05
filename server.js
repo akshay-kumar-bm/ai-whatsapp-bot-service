@@ -311,7 +311,7 @@ A: About 30–45 minutes." required></textarea>
 });
 
 // ── Onboarding Submission → Auto-generate bot config ─────────────────────────
-app.post('/onboard', (req, res) => {
+app.post('/onboard', async (req, res) => {
   const d = req.body;
 
   // Auto-generate the system prompt from form data
@@ -392,18 +392,20 @@ ${LOGO_HTML}
   // Log to console
   console.log('\n🔔 NEW CLIENT ONBOARDING:', d.business_name, '|', d.city, '|', d.whatsapp_number);
 
-  // ── Instant push notification via ntfy.sh (no API key needed) ────────────
+  // ── Instant push notification via ntfy.sh — awaited BEFORE res.send so Vercel doesn't kill it
   const NTFY_TOPIC = process.env.NTFY_TOPIC || 'akshay-bot-leads-9x3k';
-  fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
-    method: 'POST',
-    headers: {
-      'Title': `New Client: ${d.business_name}`,
-      'Priority': 'high',
-      'Tags': 'robot,money_with_wings'
-    },
-    body: `${d.business_type} · ${d.city}\nWhatsApp: ${d.whatsapp_number}\nOwner WA: ${d.owner_whatsapp}`
-  }).then(() => console.log('✅ Push notification sent via ntfy.sh'))
-    .catch(e => console.log('⚠ ntfy push failed:', e.message));
+  try {
+    await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+      method: 'POST',
+      headers: {
+        'Title': `New Lead: ${d.business_name} (${d.city})`,
+        'Priority': 'high',
+        'Tags': 'robot,money_with_wings'
+      },
+      body: `${d.business_type}\nWA: ${d.whatsapp_number}\nOwner: ${d.owner_whatsapp}`
+    });
+    console.log('✅ ntfy push sent');
+  } catch(e) { console.log('⚠ ntfy push failed:', e.message); }
 
   // Save to submissions.json as backup
   const submissionsFile = path.join(__dirname, 'submissions.json');
