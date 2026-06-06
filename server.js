@@ -338,6 +338,24 @@ RULES:
 6. End every first reply with: "Anything else I can help with?"
 7. Never promise discounts, refunds, or special deals — defer to the team.`;
 
+  // ── STEP 1: Notify BEFORE sending response (Vercel kills tasks after res.send) ──
+  console.log('\n🔔 NEW CLIENT ONBOARDING:', d.business_name, '|', d.city, '|', d.whatsapp_number);
+
+  const NTFY_TOPIC = process.env.NTFY_TOPIC || 'akshay-bot-leads-9x3k';
+  try {
+    await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+      method: 'POST',
+      headers: {
+        'Title': `New Lead: ${d.business_name} (${d.city})`,
+        'Priority': 'high',
+        'Tags': 'robot,money_with_wings'
+      },
+      body: `${d.business_type}\nWA: ${d.whatsapp_number}\nOwner: ${d.owner_whatsapp}`
+    });
+    console.log('✅ ntfy push sent');
+  } catch(e) { console.log('⚠ ntfy push failed:', e.message); }
+
+  // ── STEP 2: Send response AFTER notification ──────────────────────────────
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -388,24 +406,6 @@ ${LOGO_HTML}
 </div>
 </body>
 </html>`);
-
-  // Log to console
-  console.log('\n🔔 NEW CLIENT ONBOARDING:', d.business_name, '|', d.city, '|', d.whatsapp_number);
-
-  // ── Instant push notification via ntfy.sh — awaited BEFORE res.send so Vercel doesn't kill it
-  const NTFY_TOPIC = process.env.NTFY_TOPIC || 'akshay-bot-leads-9x3k';
-  try {
-    await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
-      method: 'POST',
-      headers: {
-        'Title': `New Lead: ${d.business_name} (${d.city})`,
-        'Priority': 'high',
-        'Tags': 'robot,money_with_wings'
-      },
-      body: `${d.business_type}\nWA: ${d.whatsapp_number}\nOwner: ${d.owner_whatsapp}`
-    });
-    console.log('✅ ntfy push sent');
-  } catch(e) { console.log('⚠ ntfy push failed:', e.message); }
 
   // Save to submissions.json as backup
   const submissionsFile = path.join(__dirname, 'submissions.json');
